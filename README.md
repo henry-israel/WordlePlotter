@@ -1,0 +1,2 @@
+# WordlePlotter
+Plots wordle stuff!
