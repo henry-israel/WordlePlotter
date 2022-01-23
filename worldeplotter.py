@@ -10,7 +10,11 @@ import pandas as pd
 pd.options.mode.chained_assignment = None #SILENCE WENCH
 import numpy as np
 import matplotlib.pyplot as plt
-from os.path import exists
+import matplotlib.ticker as ticker
+from matplotlib.dates import DateFormatter
+import matplotlib.dates as mdates
+
+
 
 class wordleplotter():
     '''
@@ -53,7 +57,7 @@ class wordleplotter():
                    'Correct Letters Guess 1', 'Correct Letters Guess 2', 
                    'Correct Letters Guess 3', 'Correct Letters Guess 4', 
                    'Correct Letters Guess 5', 'Correct Letters Guess 6']
-        if not list(self.data.columns.values)==good_head:
+        if not set(good_head).issubset(set(self.data.columns.values)):
             raise IOError(f"Columns should be : {good_head}\n, "\
                           f"instead you provided {self.data.columns.values}")
 
@@ -64,7 +68,6 @@ class wordleplotter():
   
         tvals=pd.to_datetime(self.data['Time'], format='%H:%M:%S')
         tarr=[i.asm8.astype(np.int64) for i in tvals]
-
         self.data['Time']=tarr
         
         
@@ -96,8 +99,6 @@ class wordleplotter():
             
     def getErrors(self, df):
         '''
-        
-
         Parameters
         ----------
         df : Dataframe.
@@ -117,8 +118,8 @@ class wordleplotter():
  
         for index,date in enumerate(self.dates):
             dataslice=df.loc[df['Date']==date]
-            errortable['Mean_Time'][index]=pd.to_datetime(np.mean(dataslice['Time']))
-            errortable['StdDev_Time'][index]=pd.to_datetime(np.std(dataslice['Time']))
+            errortable['Mean_Time'][index]=np.mean(dataslice['Time'])
+            errortable['StdDev_Time'][index]=np.std(dataslice['Time'])
             
             errortable['Mean_Guess'][index]=np.mean(dataslice['Number of Guesses'])
             errortable['StdDev_Guess'][index]=np.std(dataslice['Number of Guesses'])
@@ -130,15 +131,25 @@ class wordleplotter():
     def totaltimes(self):
         print(self.errortable)
         
+        fig= plt.figure()
+        ax=fig.add_subplot(1,1,1)
         
+        ax.plot(self.errortable['Date'], pd.to_datetime(self.errortable['Mean_Time'], unit='ns'))
+        xformatter = mdates.DateFormatter('%H:%M')
+        ax.yaxis.set_major_formatter(xformatter)
+
+       
+
         
-        plt.errorbar(self.errortable['Date'], self.errortable['Mean_Time'],
-                     yerr=self.errortable['StdDev_Time'])
+        # formatter = DateFormatter('%Y-%m-%d %H:%M:%S')
+        # ax.yaxis.set_major_formatter(formatter)#,
+        #              #yerr=pd.to_datetime(self.errortable['StdDev_Time']).dt.strftime('%H:%M:%S'))
         plt.show()
        
             
 
 if __name__=="__main__":
-    FILE="~/Documents/wordlestuff.csv"
+    FILE="~/WordlePlotter/worldeplotter.csv"
     x=wordleplotter(FILE)
     print(x.errortable)
+    x.totaltimes()
