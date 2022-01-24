@@ -15,6 +15,8 @@ import datetime
 from matplotlib.backends.backend_pdf import PdfPages
 from matplotlib import cm
 import random
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+
 #plt.rcParams['font.sans-serif'] = "Comic Sans MS"
 
 
@@ -353,10 +355,12 @@ class wordleplotter():
             meanstdarr['Mean']=meanstdarr['Mean'].dt.strftime('%H%M%S')
             meanstdarr['Error']=meanstdarr['Error'].dt.strftime('%H%M%S')
             
-            
-        colarr=[cm.rainbow(1.*t/len(bins)) for t in range(len(bins))]
+        if binvar=='Person':
+            colarr=[self.getColour(name) for name in bins]
+        else:
+            colarr=[cm.rainbow(1.*t/len(bins)) for t in range(len(bins))]
+        print(colarr, bins)
     
-        
         meanstdarr.plot.bar(ax=ax, x=binvar, y='Mean', yerr='Error',
                             capsize=30/len(bins), color=colarr,legend=False)
         return ax
@@ -379,7 +383,7 @@ class wordleplotter():
         bins=datatable[f'Correct Letters Guess {N}'].unique()
         fig=plt.figure()
         ax=fig.add_subplot(1,1,1)
-        ax=self.getBarPlot(ax, datatable, f'Correct Letters Guess {N}', 
+        ax=self.getBarPlot(ax, datatable, f'C≈ {N}', 
                            'Number of Guesses', np.sort(bins))
         ax.set_ylabel("Average Attempts to Guess")
         ax.set_xlabel(f"Number of Correct Letters in Guess {N}")
@@ -394,17 +398,16 @@ class wordleplotter():
         _,ax2=self.plotAverageTimeDate()
         ax2.set_title("Average time submitted per day")
         self.plotAverageGuessBar(self.displayData(),self.names)
-        for i in range(1,7):
-           self.plotNLettersPlot(self.displayData(),i)
+        self.plotNLettersPlot(self.displayData(),1)
         self.plotPersonalPlots(self.names)
         self.saveToOutput()
-
 
 if __name__=="__main__":
 
     
     FILE="~/WordlePlotter/worldeplotter.csv"
-    OUTFILE="worldeplotter"
+    OUTFILE="wordleplotter"
     x=wordleplotter(FILE, OUTFILE, verbose=False)
-    x.doMyPlotting()
+    x.firstGuessMeanGuess()
+    #x.doMyPlotting()
     
