@@ -13,9 +13,8 @@ import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import datetime
 from matplotlib.backends.backend_pdf import PdfPages
-from matplotlib import cm
 
-
+plt.rcParams['font.sans-serif'] = "Comic Sans MS"
 
 
 class wordleplotter():
@@ -167,7 +166,22 @@ class wordleplotter():
         mean=datatable[variable].mean()
         stddev=datatable[variable].std()
         return mean, stddev
-
+    
+        '''
+        Plots we want:
+            1 Average time submitted/date
+            2 Person's submit time against date
+            3 Average number of guesses/date
+            4 Person's number of guesses/date
+            5 Everyone's guess total in bar plot (both for a given date and for all dates)
+            6 Hist of total number of guesses binned by time [variable binning]
+            
+        COMMON AXES
+            1,2 : Same x,y axes 
+                -Want same code but make errors optional
+            3,4 : (See above) 
+        '''
+        
         
     def getMean_Error(self, datatable, binvar, variable, name=None):
         #Gets errors based on date, returns dataframe of date, mean etc.
@@ -175,9 +189,11 @@ class wordleplotter():
         if variable not in datatable.columns.values.tolist() and variable!=None:
             raise ValueError(f"Variable not in {datatable.columns.values.tolist}")
         if binvar not in datatable.columns.values.tolist():
-            raise ValueError(f"Binning variable not in {datatable.columns.values.tolist()}")
+            raise ValueError(f"Binning variable not in {datatable.columns.values.tolist}")
         if name!=None:
             datatable=datatable[datatable['Person']==name]
+            if variable=='Time':
+                datatable['Time']=pd.to_datetime(datatable['Time'], format='%H:%M:%S')
         
         if self.verbose:
             print("Getting errors for {variable} per {binvar}")
@@ -185,6 +201,7 @@ class wordleplotter():
         meanarr=[]
         stddevarr=[]
         for b in binvararr:
+            print(b)
             m,s=self.getMeanVariables(datatable, variable, binvar, b, name=name)
             meanarr.append(m)
             stddevarr.append(s)
@@ -193,7 +210,8 @@ class wordleplotter():
         datemeanstd[binvar]=binvararr
         datemeanstd['Mean']=meanarr
         datemeanstd['Error']=stddevarr
-        return datemeanstd.dropna()
+        
+        return datemeanstd
 
     def formatTimeErrors(self, dataframe):
         #Reformats errors of timestamps
@@ -216,6 +234,7 @@ class wordleplotter():
         #df goes in, means by date go out
         meandf=self.getMean_Error(df, 'Date', 'Time', name=name)
         meandf=meandf.dropna()
+        print(meandf)
         meandf = self.formatTimeErrors(meandf)
         if self.verbose:
             print(meandf)
@@ -231,8 +250,9 @@ class wordleplotter():
                    color='black', backplot=False):
         #Does line plot for stuff
         self.setAxisStuff(ax)
-        kwargs={'legend':False}
+        kwargs={}
         ecolor='red'
+        
         if backplot==True:
             ecolor='grey'
             color='black'
@@ -242,12 +262,8 @@ class wordleplotter():
             optkwargs={'yerr':yerr, 'ecolor':ecolor,'capsize':10.0}
             kwargs={**kwargs,**optkwargs}
 
-        data.plot(x=xname, y=yname)#, ax=ax, label=label, color=color)#, **kwargs)
-        print("DO WE REACH HERE")
+        data.plot(x=xname, y=yname, ax=ax, label=label, legend=False, color=color, **kwargs)
         return ax
-    
-    
-    #################### LINE PLOTS #################################
     
     def plotAverageTimeDate(self, backplot=False):
         df=self.displayData()
@@ -265,15 +281,13 @@ class wordleplotter():
 
     def plotTimeDateName(self, name):
         df=self.displayData()
-        print("setup")
+
         fig,ax = self.plotAverageTimeDate(backplot=True)
         #Don't want to double plot!
         self.figs=self.figs[:-1]
         
         meandf=self.getMean_Error(df, 'Date', 'Time',name=name)
-        print("AGHH")
         ax=self.doLinePlot(ax, meandf, f'{name}', 'Date', 'Mean', color='forestgreen')
-        print("OH")
         self.figs.append(fig)
         ax.legend()
         ax.set_title(f"Time of day Submitted for {name}")
@@ -307,69 +321,11 @@ class wordleplotter():
         return fig,ax
 
 
-    def plotPersonalPlots(self, namearr):
-        for name in namearr:
-            print("1")
-            fig,ax0=self.plotTimeDateName(name)
-            print("2")
-            fig,ax1=self.plotGuessDateName(name)
-            print("3")
-            #self.figs=self.figs[:-2]
-            print("breaks here")
-            fig,(ax0,ax1)=plt.subplots(2)
-            self.figs.append(fig)
-
-    ##################### BAR CHARTS ###################################
-    def getBarPlot(self, ax, datatable, binvar, variable, bins):
-        meanstdarr=self.getMean_Error(datatable, binvar=binvar,
-                                          variable=variable)
-        meanstdarr=meanstdarr[meanstdarr[binvar].isin(bins)]
-        
-        if variable=='Time':
-            meanstdarr['Mean']=meanstdarr['Mean'].dt.strftime('%H%M%S')
-            meanstdarr['Error']=meanstdarr['Error'].dt.strftime('%H%M%S')
-            
-            
-        colarr=[cm.rainbow(1.*t/len(bins)) for t in range(len(bins))]
-
-        
-        meanstdarr.plot.bar(ax=ax, x=binvar, y='Mean', yerr='Error',
-                            capsize=30/len(bins), color=colarr,legend=False)
-        return ax
-    
-    def plotAverageGuessBar(self,datatable,namesarr):
-        #Plots average guesses as bare
-        if not set(namesarr).issubset(set(self.names)):
-            raise ValueError(f"Names provided aren't in {self.names}")
-        fig=plt.figure()
-        ax=fig.add_subplot(1,1,1)
-        
-        ax=self.getBarPlot(ax, datatable, 'Person', 'Number of Guesses', namesarr)
-        ax.set_ylabel("Average Guess")
-        ax.set_xticklabels(namesarr, fontsize=6, rotation=0)
-        self.figs.append(fig)
-        return fig,ax
-
-    def plotNLettersPlot(self, datatable, N):
-        bins=datatable[f'Correct Letters Guess {N}'].unique()
-        fig=plt.figure()
-        ax=fig.add_subplot(1,1,1)
-        ax=self.getBarPlot(ax, datatable, 'Correct Letters Guess {N}', 
-                           'Number of Guesses', np.sort(bins))
-        ax.set_ylabel("Average Attempts to Guess")
-        ax.set_xlabel("Number of Correct Letters in Guess {N}")
-        ax.set_xticklabels(np.sort(bins),fontsize=6, rotation=0)
-        self.figs.append(fig)
-        return fig,ax
-    ################       Histograms     ##############################
-    
-
-
 
 if __name__=="__main__":
     FILE="~/WordlePlotter/worldeplotter.csv"
     OUTFILE="worldeplotter"
     x=wordleplotter(FILE, OUTFILE, verbose=False)
-    x.plotPersonalPlots(x.displayNames())
+    x.plotGuessDateName('Henry')
     x.saveToOutput()
     
