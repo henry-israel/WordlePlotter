@@ -55,12 +55,12 @@ class wordleplotter():
         self.data=pd.read_csv(pathtodata)
         
         #SO NO HEAD (throws phone on ground)
-        good_head=['Person', 'Date', 'Time', 'Number of Guesses', 
+        self.good_head=['Person', 'Date', 'Time', 'Number of Guesses', 
                    'Correct Letters Guess 1', 'Correct Letters Guess 2', 
                    'Correct Letters Guess 3', 'Correct Letters Guess 4', 
                    'Correct Letters Guess 5', 'Correct Letters Guess 6']
-        if not set(good_head).issubset(set(self.data.columns.values)):
-            raise IOError(f"Columns should be : {good_head}\n, "\
+        if not set(self.good_head).issubset(set(self.data.columns.values)):
+            raise IOError(f"Columns should be : {self.good_head}\n, "\
                           f"instead you provided {self.data.columns.values}")
 
         #Speak when plotting?
@@ -78,17 +78,6 @@ class wordleplotter():
         #Grab Errors for full dataset
         if self.verbose:
             print("Grabbing full set of errors")
-        self.errortable=self.getErrors(self.data)
-
-        #Grab Personal Errors
-        nameerrarr=[]
-        for name in self.names:
-            if self.verbose:
-                print(f"Getting errors for {name}")
-            nameerrarr.append(self.getErrors(self.data[self.data['Person']==name]))
-            
-        #Nice little dictionary
-        self.nameerrdict={name : err for name,err in zip(self.names, nameerrarr)}
         self.figs=[]
 
         if self.verbose:
@@ -129,185 +118,214 @@ class wordleplotter():
         if self.verbose:
             print(self.output)
         return self.output
-            
-    #Grab errors while they're hot 
     
-    def getErrors(self, df):
-        '''
-        Parameters
-        ----------
-        df : Dataframe.
-
-        Returns
-        -------
-        errortable : Errors for each date.
-
-        '''
-        #Errors By Date:
-        errortable=pd.DataFrame()
-        errortable['Date']=self.dates
-        errortable['Mean_Time']=np.nan
-        errortable['StdDev_Time']=np.nan
-        errortable['Mean_Guess']=np.nan
-        errortable['StdDev_Guess']=np.nan
- 
-        for index,date in enumerate(self.dates):
-            dataslice=df.loc[df['Date']==date]
-            errortable['Mean_Time'][index]=np.mean(dataslice['Time'])
-            errortable['StdDev_Time'][index]=pd.to_timedelta(np.std(dataslice['Time']))
-            
-            errortable['Mean_Guess'][index]=np.mean(dataslice['Number of Guesses'])
-            errortable['StdDev_Guess'][index]=np.std(dataslice['Number of Guesses'])
-
-        #Get rid of bad stuff
-        return errortable.dropna()
-           
     def setAxisStuff(self, ax):
         ax.tick_params(axis='both', which='major', labelsize=10)
         ax.tick_params(axis='both', which='minor', labelsize=8)
         return ax
     
     #Plot total times
-
+    
     def saveToOutput(self):
-       
         pdf = PdfPages(f'{self.output}.pdf')
         for fig in self.figs:
             pdf.savefig(fig)
+            plt.close(fig)
         pdf.close()
-        plt.close('all')
-        
-        
-    def plotTimes(self, errors, name=None):
+            
+    def getMeanVariables(self, datatable, variable, binvar=None, binval=None,  name=None):
         '''
-        
 
         Parameters
         ----------
-        errortable : PD DataFrame
-            DataFrame with error.
+        variable : String,
+            Variable you need standard deviation and mean of
         name : String, optional
-            Adds name to title. The default is None.
+            Persons name. The default is None.
+        date : String, optional
+            Date. The default is None.
+        Raises
+        ------
+        ValueError
+            If person provides name/data not present in data,  breaks.
 
         Returns
         -------
-        None.
+        Mean times and standard deviations.
 
         '''
-        if not 'Date' in errors:
-            raise ValueError("Date is not present in given error array")
-        if not 'Mean_Time' in errors or not 'StdDev_Time' in errors:
-            raise ValueError("Error array requires time mean and standard deviation")
-        if not name in self.names and name!=None:
-            raise ValueError(f"Given name of {name} does not exist in {self.names}")
+        if variable not in self.good_head:
+            raise ValueError(f"Variable {variable} not in {self.good_head}")
+        if name not in self.displayNames() and name!=None:
+            raise ValueError(f"{name} not in {self.names}")
+        if name!=None:
+            datatable=datatable[datatable['Person']==name]
+        if binvar!=None:
+            datatable=datatable[datatable[binvar]==binval]
         
-        fig= plt.figure()
-        ax=fig.add_subplot(1,1,1)
+        mean=datatable[variable].mean()
+        stddev=datatable[variable].std()
+        return mean, stddev
+    
+        '''
+        Plots we want:
+            1 Average time submitted/date
+            2 Person's submit time against date
+            3 Average number of guesses/date
+            4 Person's number of guesses/date
+            5 Everyone's guess total in bar plot (both for a given date and for all dates)
+            6 Hist of total number of guesses binned by time [variable binning]
+            
+        COMMON AXES
+            1,2 : Same x,y axes 
+                -Want same code but make errors optional
+            3,4 : (See above) 
+        '''
+        
+        
+    def getMean_Error(self, datatable, binvar, variable, name=None):
+        #Gets errors based on date, returns dataframe of date, mean etc.
 
-        # ax.errorbar(self.errortable['Date'],
-        #             pd.to_timedelta(self.errortable['Mean_Time'], unit='ns'),
-        #             pd.to_datetime(self.errortable['StdDev_Time']), unit='ns')
-        yformatter = mdates.DateFormatter('%H:%M')
-        ax.yaxis.set_major_formatter(yformatter)
+        if variable not in datatable.columns.values.tolist() and variable!=None:
+            raise ValueError(f"Variable not in {datatable.columns.values.tolist}")
+        if binvar not in datatable.columns.values.tolist():
+            raise ValueError(f"Binning variable not in {datatable.columns.values.tolist}")
+        if name!=None:
+            datatable=datatable[datatable['Person']==name]
+            if variable=='Time':
+                datatable['Time']=pd.to_datetime(datatable['Time'], format='%H:%M:%S')
+        
+        if self.verbose:
+            print("Getting errors for {variable} per {binvar}")
+        binvararr=datatable[binvar].unique()
+        meanarr=[]
+        stddevarr=[]
+        for b in binvararr:
+            print(b)
+            m,s=self.getMeanVariables(datatable, variable, binvar, b, name=name)
+            meanarr.append(m)
+            stddevarr.append(s)
+            
+        datemeanstd=pd.DataFrame()
+        datemeanstd[binvar]=binvararr
+        datemeanstd['Mean']=meanarr
+        datemeanstd['Error']=stddevarr
+        
+        return datemeanstd
 
-        errors.plot(x='Date', y='Mean_Time', yerr='StdDev_Time',
-                             ax=ax,legend=False,capsize=10.0,
-                             color='black', ecolor='red')
-        ax.set_xlim([datetime.date(2022, 1, 13), datetime.date.today()])
-        ax.set_ylabel("Time (O'Clock)")
+    def formatTimeErrors(self, dataframe):
+        #Reformats errors of timestamps
+        dataframe['Error']=pd.to_timedelta(dataframe['Error'])
+        return dataframe
+    
+    def formatTimeAxis(self):
+        return mdates.DateFormatter('%H:%M')
+
+    def formatDateAxis(self, ax):
+        ax.set_xlim([datetime.date(2022, 1, 13), 
+                     datetime.date.today()+datetime.timedelta(1)])
         ax.set_xlabel("Date")
         ax.xaxis.labelpad=-20
-        ax = self.setAxisStuff(ax)
-        if name==None:
-            ax.set_title("Average Time for Wordle Completion")
-        else:
-            ax.set_title(f"Time for Wordle Completion for : {name}")
-        
-        if self.verbose:    
-            plt.show()
-        
-        self.figs.append(fig)
-        return fig, ax
 
-    def plotGuesses(self, errors, name=None):
-        if not 'Date' in errors:
-            raise ValueError("Date is not present in given error array")
-        if not 'Mean_Guess' in errors or not 'StdDev_Guess' in errors:
-            raise ValueError("Error array requires time mean and standard deviation")
-        if not name in self.names and name!=None:
-            raise ValueError(f"Given name of {name} does not exist in {self.names}")
-        plt.tick_params(labelsize=8, rotation=45)
-        fig = plt.figure()
-        ax=fig.add_subplot(1,1,1)
-        ax.set_xlim([datetime.date(2022, 1, 13), datetime.date.today()])
-        ax=self.setAxisStuff(ax)
-        errors.plot(x='Date', y='Mean_Guess', yerr='StdDev_Guess', 
-                    ax=ax,legend=False,capsize=10.0,
-                    color='black', ecolor='red')
-        
-        ax.set_xlim([datetime.date(2022, 1, 13), datetime.date.today()])
-        ax.set_xlabel("Date")
-        ax.xaxis.labelpad=0
+        return ax
 
-        ax.set_ylabel("Average number of guesses")
-        if name==None:
-            ax.set_title("Average Number ofGuesses for Wordle Completion")
-        else:
-            ax.set_title(f"Number of Guesses for Wordle Completion for : {name}")        
-        
+    
+    def getAverageTimeDate(self, df, name=None):
+        #df goes in, means by date go out
+        meandf=self.getMean_Error(df, 'Date', 'Time', name=name)
+        meandf=meandf.dropna()
+        print(meandf)
+        meandf = self.formatTimeErrors(meandf)
         if self.verbose:
-            plt.show()
+            print(meandf)
+        return meandf
+    
+    def getAverageGuessDate(self, df, name=None):
+        meandf=self.getMean_Error(df, 'Date', 'Guess', name=name)
+        if self.verbose:
+            print(meandf)
+        return meandf
+    
+    def doLinePlot(self, ax, data, label, xname, yname, yerr=None,
+                   color='black', backplot=False):
+        #Does line plot for stuff
+        self.setAxisStuff(ax)
+        kwargs={}
+        ecolor='red'
         
+        if backplot==True:
+            ecolor='grey'
+            color='black'
+            optkwargs={'alpha':0.5,'linestyle':'dashed'}
+            kwargs={**kwargs,**optkwargs}
+        if yerr!=None:
+            optkwargs={'yerr':yerr, 'ecolor':ecolor,'capsize':10.0}
+            kwargs={**kwargs,**optkwargs}
+
+        data.plot(x=xname, y=yname, ax=ax, label=label, legend=False, color=color, **kwargs)
+        return ax
+    
+    def plotAverageTimeDate(self, backplot=False):
+        df=self.displayData()
+        meandf=self.getMean_Error(df, 'Date', 'Time')
+        
+        fig=plt.figure() 
+        ax= fig.add_subplot(1,1,1)
+        ax.yaxis.set_major_formatter(self.formatTimeAxis())
+        ax=self.doLinePlot(ax, meandf, 'Average Data Set', 'Date', 'Mean',
+                           yerr='Error', backplot=backplot)
+        ax=self.formatDateAxis(ax)
+        ax.set_ylabel("Time/O'Clock")
         self.figs.append(fig)
+        return fig,ax
+
+    def plotTimeDateName(self, name):
+        df=self.displayData()
+
+        fig,ax = self.plotAverageTimeDate(backplot=True)
+        #Don't want to double plot!
+        self.figs=self.figs[:-1]
         
+        meandf=self.getMean_Error(df, 'Date', 'Time',name=name)
+        ax=self.doLinePlot(ax, meandf, f'{name}', 'Date', 'Mean', color='forestgreen')
+        self.figs.append(fig)
+        ax.legend()
+        ax.set_title(f"Time of day Submitted for {name}")
         return fig,ax
     
-    def plotAverageGuessesByName(self, name_arr):
-        '''
-        Plots names/average score + errors
-
-        Parameters
-        ----------
-        name_arr : Iterable<String>
-
-        Returns
-        -------
-        axis
-
-        '''
-        if not set(self.names).issubset(name_arr):
-            raise ValueError(f"name_arr provided contains names not in {self.names}")
+    def plotAverageGuessDate(self, backplot=False):
+        df=self.displayData()
+        meandf=self.getMean_Error(df, 'Date', 'Number of Guesses')
         
-        
-        means=[]
-        stddev=[]
-        for name in name_arr:
-            means.append(np.mean(self.nameerrdict[name]['Mean_Guess']))
-            stddev.append(np.std(self.nameerrdict[name]['Mean_Guess']))
-        
-        fig = plt.figure()
-        ax=fig.add_subplot(1,1,1)
-        ax.bar(name_arr, means, 0.8, yerr=stddev, align='center', alpha=0.5, color='forestgreen', 
-               ecolor='black', capsize=5)
-        ax.set_ylabel('Average Guesses until Correct')
-        ax.set_title("Average guesses for everyone")
-        
-        
-        if self.verbose:
-            plt.show()
+        fig=plt.figure() 
+        ax= fig.add_subplot(1,1,1)
+        ax=self.doLinePlot(ax, meandf, 'Average Data Set', 'Date', 'Mean',
+                           yerr='Error', backplot=backplot)
+        ax=self.formatDateAxis(ax)
+        ax.set_ylabel("Number of Guesses")
         self.figs.append(fig)
-        return fig, ax
+        return fig,ax
+    
+    def plotGuessDateName(self, name):
+        df=self.displayData()
+
+        fig,ax = self.plotAverageGuessDate(backplot=True)
+        #Don't want to double plot!
+        self.figs=self.figs[:-1]
+        
+        meandf=self.getMean_Error(df, 'Date', 'Number of Guesses',name=name)
+        ax=self.doLinePlot(ax, meandf, f'{name}', 'Date', 'Mean', color='forestgreen')
+        self.figs.append(fig)
+        ax.legend()
+        ax.set_title(f"Number of guesses submitted for {name}")
+        return fig,ax
+
+
 
 if __name__=="__main__":
     FILE="~/WordlePlotter/worldeplotter.csv"
     OUTFILE="worldeplotter"
     x=wordleplotter(FILE, OUTFILE, verbose=False)
-    errors=x.getErrors(x.displayData())
-    x.plotAverageGuessesByName(x.displayNames())
-    for name in x.displayNames():
-        x.plotTimes(x.displayNameErrDict()[name], name=name)
-        x.plotGuesses(x.displayNameErrDict()[name], name)
-    x.plotTimes(x.displayError())
-    x.plotGuesses(x.displayError())
+    x.plotGuessDateName('Henry')
     x.saveToOutput()
     
