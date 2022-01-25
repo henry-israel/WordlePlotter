@@ -354,7 +354,10 @@ class wordleplotter():
             meanstdarr['Error']=meanstdarr['Error'].dt.strftime('%H%M%S')
             
             
-        colarr=[cm.rainbow(1.*t/len(bins)) for t in range(len(bins))]
+        if binvar=='Person':
+            colarr=[self.getColour(name) for name in bins]
+        else:
+            colarr=[cm.rainbow(1.*t/len(bins)) for t in range(len(bins))]
     
         
         meanstdarr.plot.bar(ax=ax, x=binvar, y='Mean', yerr='Error',
@@ -404,7 +407,7 @@ if __name__=="__main__":
 
     
     FILE="~/WordlePlotter/worldeplotter.csv"
-    OUTFILE="worldeplotter"
+    OUTFILE="wordleplotter"
     x=wordleplotter(FILE, OUTFILE, verbose=False)
     x.doMyPlotting()
     
