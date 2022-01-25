@@ -396,10 +396,11 @@ class wordleplotter():
         ax1.set_title("Average Guesses to be Correct Per Day")
         _,ax2=self.plotAverageTimeDate()
         ax2.set_title("Average time submitted per day")
-        self.plotAverageGuessBar(self.displayData(),self.names)
-        for i in range(1,7):
-           self.plotNLettersPlot(self.displayData(),i)
-        self.plotPersonalPlots(self.names)
+        namesarr=self.names
+        namesarr=np.delete(namesarr, np.where(namesarr=='Owen'))
+        self.plotAverageGuessBar(self.displayData(),namesarr)
+        self.plotNLettersPlot(self.displayData(),1)
+        self.plotPersonalPlots(namesarr)
         self.saveToOutput()
 
 
