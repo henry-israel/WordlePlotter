@@ -318,6 +318,7 @@ class wordleplotter():
         ax=self.doLinePlot(ax, meandf, 'Average Data Set', 'Date', 'Mean',
                            yerr='Error', backplot=backplot)
         ax=self.formatDateAxis(ax)
+        ax.set_ylim(1,7)
         ax.set_ylabel("Number of Guesses")
         self.figs.append(fig)
         return fig,ax
